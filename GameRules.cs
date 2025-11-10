@@ -1,0 +1,340 @@
+﻿
+namespace LouveSystems.K2.Lib
+{
+    using System.IO;
+
+    [System.Serializable]
+    public class GameRules : IBinarySerializableWithVersion
+    {
+
+        [System.Serializable]
+        public struct GlobalFactionSettings : IBinarySerializableWithVersion
+        {
+            public byte FactionCount => (byte)flagsForFaction.Length;
+
+            public byte richesSilverMultiplier; // 2
+            public byte richesBuildingMultiplier; // 3
+            public byte richesBuildingDivider; // 2
+
+            public byte looterRichesMultiplier;
+            public byte looterMinimumSilver;
+
+            public byte conqueredFortPayout;
+
+            public EFactionFlag[] flagsForFaction;
+
+            public void Read(byte version, BinaryReader from)
+            {
+                flagsForFaction = new EFactionFlag[from.ReadByte()];
+
+                for (int i = 0; i < flagsForFaction.Length; i++) {
+                    flagsForFaction[i] = (EFactionFlag)from.ReadUInt16();
+                }
+
+                richesSilverMultiplier = from.ReadByte();
+                richesBuildingMultiplier = from.ReadByte();
+                richesBuildingDivider = from.ReadByte();
+
+                looterRichesMultiplier = from.ReadByte();
+                looterMinimumSilver = from.ReadByte();
+
+                conqueredFortPayout = from.ReadByte();
+            }
+
+            public void Write(BinaryWriter into)
+            {
+                into.Write(FactionCount);
+                for (int i = 0; i < FactionCount; i++) {
+                    into.Write((ushort)flagsForFaction[i]);
+                }
+
+                into.Write(richesSilverMultiplier); 
+                into.Write(richesBuildingMultiplier); 
+                into.Write(richesBuildingDivider);
+
+                into.Write(looterRichesMultiplier);
+                into.Write(looterMinimumSilver);
+
+                into.Write(conqueredFortPayout);
+            }
+        }
+
+
+        [System.Serializable]
+        public struct BuildingSettings : IBinarySerializableWithVersion
+        {
+            public EBuilding building;
+
+            public byte silverRevenue;
+
+            public byte silverCost;
+
+            public bool canBeBuilt;
+
+            public void Read(byte version, BinaryReader from)
+            {
+                building = (EBuilding)from.ReadByte();
+                silverRevenue = from.ReadByte();
+                silverCost = from.ReadByte();
+                canBeBuilt = from.ReadBoolean();
+            }
+
+            public void Write(BinaryWriter into)
+            {
+                into.Write((byte)building);
+                into.Write(silverRevenue);
+                into.Write(silverCost);
+                into.Write(canBeBuilt);
+            }
+        }
+
+        [System.Serializable]
+        public struct VotingSettings : IBinarySerializableWithVersion
+        {
+            public EVotingCriteria criteria;
+            public bool enabled;
+            public byte activeAfterCouncils;
+            public byte chancesToBeSelected;
+            public byte influenceWeight;
+
+            public void Read(byte version, BinaryReader from)
+            {
+                criteria = (EVotingCriteria)from.ReadByte();
+                enabled = from.ReadBoolean();
+                activeAfterCouncils = from.ReadByte();
+                chancesToBeSelected = from.ReadByte();
+                influenceWeight = from.ReadByte();
+            }
+
+            public void Write(BinaryWriter into)
+            {
+                into.Write((byte)criteria);
+                into.Write(enabled);
+                into.Write(activeAfterCouncils);
+                into.Write(chancesToBeSelected);
+                into.Write(influenceWeight);
+            }
+        }
+
+        [System.Serializable]
+        public class VotingRules : IBinarySerializableWithVersion
+        {
+            public int voterCount = 33;
+
+            public byte[] criteriasUsedPerVote = new byte[]{
+                byte.MaxValue
+            };
+
+            public byte[] turnoverPercentagePerCouncil = new byte[] {
+                33,
+                51,
+                75,
+                95,
+                100
+            };
+
+            public VotingSettings[] votingCriterias;
+
+            public void Read(byte version, BinaryReader from)
+            {
+                voterCount = from.ReadInt32();
+                criteriasUsedPerVote = from.ReadBytes();
+                turnoverPercentagePerCouncil = from.ReadBytes();
+
+                votingCriterias = new VotingSettings[from.ReadByte()];
+                for (int i = 0; i < votingCriterias.Length; i++) {
+                    votingCriterias[i].Read(version, from);
+                }
+            }
+
+            public void Write(BinaryWriter into)
+            {
+                into.Write(voterCount);
+                into.WriteBytes(criteriasUsedPerVote);
+                into.WriteBytes(turnoverPercentagePerCouncil);
+
+                into.Write((byte)votingCriterias.Length);
+                for (int i = 0; i < votingCriterias.Length; i++) {
+                    votingCriterias[i].Write(into);
+                }
+            }
+        }
+
+        public byte additionalRealmsCount = 1;
+
+        public bool hasCouncilRealm = true;
+
+        public byte councilRealmRegionSize = 1;
+
+        public byte initialSafetyMarginBetweenRealms = 1;
+
+        public byte initialRealmsSize = 1;
+
+        public byte silverRevenuePerRegion = 1;
+
+        public byte startingGold = 2;
+
+        public byte startingDecisionCount = 3;
+
+        public byte maxDecisionCount = 5;
+
+        public byte favourGoldPrice = 10;
+
+        public byte enhanceAdminGoldPrice = 2;
+
+        public byte enhanceAdminGoldPriceIncreasePerUpgrade = 10;
+
+        public bool allowLooting = true;
+
+        public byte silverLootedOnCapital = 10;
+
+        public bool neutralRegionStarvation = true;
+
+        public bool goTakeNeutralOnlyWhenNoContest = true;
+
+        public byte turnsBetweenVotes = 4;
+
+        public byte initialVoteTurnsDelay = 1;
+
+        public int decisionTimeSeconds = 30;
+
+        public int additionalDecisionTimeSecondsOnFirstTurn = 30;
+
+        public byte eatenCorners = 2;
+
+        public byte eatFirstLastColumns = 1;
+
+        public bool capitalCanReplay = true;
+
+        public bool subjugationEnabled = true;
+
+        public VotingRules voting = new VotingRules();
+
+        public BuildingSettings[] buildings = new BuildingSettings[0];
+
+        public GlobalFactionSettings factions = new GlobalFactionSettings();
+
+        public void Write(BinaryWriter into)
+        {
+            into.Write(initialRealmsSize);
+            into.Write(additionalRealmsCount);
+            into.Write(councilRealmRegionSize);
+            into.Write(hasCouncilRealm);
+            into.Write(startingGold);
+            into.Write(initialSafetyMarginBetweenRealms);
+            into.Write(initialVoteTurnsDelay);
+            into.Write(decisionTimeSeconds);
+            into.Write(additionalDecisionTimeSecondsOnFirstTurn);
+            into.Write(enhanceAdminGoldPrice);
+            into.Write(enhanceAdminGoldPriceIncreasePerUpgrade);
+            into.Write(favourGoldPrice);
+
+            into.Write(allowLooting);
+            into.Write(silverLootedOnCapital);
+
+            into.Write(neutralRegionStarvation);
+            into.Write(goTakeNeutralOnlyWhenNoContest);
+
+            into.Write(turnsBetweenVotes);
+            into.Write(eatenCorners);
+            into.Write(eatFirstLastColumns);
+            into.Write(startingDecisionCount); 
+            into.Write(maxDecisionCount);
+
+            into.Write(silverRevenuePerRegion);
+
+            into.Write(capitalCanReplay);
+            into.Write(subjugationEnabled);
+
+            into.Write((byte)buildings.Length);
+            for (int i = 0; i < buildings.Length; i++) {
+                buildings[i].Write(into);
+            }
+
+            voting.Write(into);
+            factions.Write(into);
+        }
+
+        public void Read(byte version, BinaryReader from)
+        {
+            initialRealmsSize = from.ReadByte();
+            additionalRealmsCount = from.ReadByte();
+            councilRealmRegionSize = from.ReadByte();
+            hasCouncilRealm = from.ReadBoolean();
+            startingGold = from.ReadByte();
+            initialSafetyMarginBetweenRealms = from.ReadByte();
+            initialVoteTurnsDelay = from.ReadByte();
+            decisionTimeSeconds = from.ReadInt32();
+            additionalDecisionTimeSecondsOnFirstTurn = from.ReadInt32(); 
+            enhanceAdminGoldPrice = from.ReadByte();
+            enhanceAdminGoldPriceIncreasePerUpgrade = from.ReadByte();
+            favourGoldPrice = from.ReadByte();
+
+            allowLooting = from.ReadBoolean();
+            silverLootedOnCapital = from.ReadByte();
+
+            neutralRegionStarvation = from.ReadBoolean();
+            goTakeNeutralOnlyWhenNoContest = from.ReadBoolean();
+
+            turnsBetweenVotes = from.ReadByte();
+            eatenCorners = from.ReadByte();
+            eatFirstLastColumns = from.ReadByte();
+            startingDecisionCount = from.ReadByte();
+            maxDecisionCount = from.ReadByte();
+
+            silverRevenuePerRegion = from.ReadByte();
+
+            capitalCanReplay = from.ReadBoolean();
+            subjugationEnabled = from.ReadBoolean();
+
+            buildings = new BuildingSettings[from.ReadByte()];
+            for (int i = 0; i < buildings.Length; i++) {
+                buildings[i].Read(version, from);
+            }
+
+            voting.Read(version, from);
+            factions.Read(version, from);
+        }
+
+        public GameRules Duplicate()
+        {
+            using (MemoryStream ms = new MemoryStream()) {
+                using(BinaryWriter bw = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true)) {
+                    Write(bw);
+                }
+
+                ms.Seek(0, SeekOrigin.Begin);
+
+                var dupe = new GameRules();
+
+                using (BinaryReader br = new BinaryReader(ms)) {
+                    dupe.Read(default, br);
+                }
+
+                return dupe;
+            }
+        }
+
+        public BuildingSettings GetBuilding(EBuilding building)
+        {
+            for (int i = 0; i < buildings.Length; i++) {
+                if (buildings[i].building == building) {
+                    return buildings[i];
+                }
+            }
+
+            throw new System.Exception($"Invalid building {building}");
+        }
+
+        public VotingSettings GetVotingSetting(EVotingCriteria criteria)
+        {
+            for (int i = 0; i < voting.votingCriterias.Length; i++) {
+                if (criteria == voting.votingCriterias[i].criteria) {
+                    return voting.votingCriterias[i];
+                }
+            }
+
+            throw new System.Exception($"Invalid criteria {criteria}");
+        }
+    }
+}

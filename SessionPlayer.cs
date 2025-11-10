@@ -1,0 +1,375 @@
+﻿
+namespace LouveSystems.K2.Lib
+{
+    using System.Collections.Generic;
+    using System.Linq;
+
+    public class SessionPlayer
+    {
+        public byte RealmIndex;
+
+        public GameRules Rules => gameSession.Rules;
+
+        public byte FactionIndex => gameSession.CurrentGameState.world.Realms[RealmIndex].factionIndex;
+
+        public EFactionFlag Faction => Rules.factions.flagsForFaction[FactionIndex];
+
+        private readonly GameSession gameSession;
+
+        public SessionPlayer(GameSession session)
+        {
+            this.gameSession = session;
+        }
+
+        public bool GetPlannedConstructions(List<EBuilding> plannedBuildings)
+        {
+            int builds = 0;
+
+            gameSession.AwaitingTransforms.ForEach(o =>
+            {
+                if (o is RegionBuildTransform build &&
+                    build.owningRealm == RealmIndex) {
+                    builds++;
+                    plannedBuildings.Add(build.building);
+                }
+            });
+
+            return builds > 0;
+        }
+
+
+        public bool CanExtendAttack()
+        {
+            if (Faction.HasFlagSafe(EFactionFlag.Charge)) {
+                for (int i = 0; i < gameSession.AwaitingTransforms.Count; i++) {
+                    if (gameSession.AwaitingTransforms[i].owningRealm == RealmIndex &&
+                        gameSession.AwaitingTransforms[i] is RegionAttackRegionTransform attack &&
+                        attack.isExtendedAttack
+                        ) {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        public void PlanAttack(int fromRegionIndex, int toRegionIndex)
+        {
+            List<int> neighbors = new List<int>(6);
+            gameSession.CurrentGameState.world.GetNeighboringRegions(fromRegionIndex, neighbors);
+
+            bool isExtendedAttack = !neighbors.Contains(toRegionIndex);
+
+            RegionAttackRegionTransform transform = new RegionAttackRegionTransform(
+                fromRegionIndex,
+                toRegionIndex,
+                isExtendedAttack: isExtendedAttack,
+                RealmIndex
+            );
+
+            Act(transform);
+        }
+
+        public bool GetPlannedAttacks(List<RegionAttackRegionTransform> plannedAttacks)
+        {
+            int attacks = 0;
+
+            gameSession.AwaitingTransforms.ForEach(o =>
+            {
+                if (o is RegionAttackRegionTransform atk &&
+                    atk.owningRealm == RealmIndex) {
+                    attacks++;
+                    plannedAttacks.Add(atk);
+                }
+            });
+
+            return attacks > 0;
+        }
+
+        public bool HasAnyAttackPlanned(out int count)
+        {
+            int attacks = 0;
+
+            gameSession.AwaitingTransforms.ForEach(o =>
+            {
+                if (o is RegionAttackRegionTransform atk &&
+                    atk.owningRealm == RealmIndex) {
+                    attacks++;
+                }
+            });
+
+            count = attacks;
+            return attacks > 0;
+        }
+
+        public bool IsUnderAttack(int regionIndex, out int attackCount, out bool anyExtendedAttack)
+        {
+            var transforms = gameSession.AwaitingTransforms.FindAll(
+                o =>
+                    o is RegionAttackRegionTransform attack &&
+                    CanControlRealm(attack.owningRealm) &&
+                    attack.targetRegionIndex == regionIndex
+            );
+
+            attackCount = transforms.Count;
+
+            anyExtendedAttack = transforms.Any(o => o is RegionAttackRegionTransform atk && atk.isExtendedAttack);
+
+            return attackCount > 0;
+        }
+
+        public bool IsBuildingAnything(out int count)
+        {
+            int total = 0;
+            gameSession.AwaitingTransforms.ForEach(o =>
+            {
+                if (o is RegionBuildTransform build && CanControlRealm(build.owningRealm)) {
+                    total++;
+                }
+            });
+
+            count = total;
+            return count > 0;
+        }
+
+        public bool IsBuildingSomething(int regionIndex, out EBuilding building)
+        {
+            if (gameSession.AwaitingTransforms.Find(o =>
+                o is RegionBuildTransform build &&
+                build.actingRegionIndex == regionIndex &&
+                CanControlRealm(build.owningRealm)) is RegionBuildTransform buildTransform
+            ) {
+                building = buildTransform.building;
+                return true;
+            }
+
+            building = default;
+            return false;
+        }
+
+        public int GetMaximumDecisions()
+        {
+            return gameSession.CurrentGameState.world.Realms[RealmIndex].availableDecisions + (AdminUpgradeIsPlanned() ? 1 : 0);
+        }
+
+        public int GetRemainingDecisions()
+        {
+            int maxDecisions = GetMaximumDecisions();
+            int decisionsTaken = gameSession.AwaitingTransforms.Sum(o => o.owningRealm == RealmIndex ? o.DecisionCost : 0);
+
+            return maxDecisions - decisionsTaken;
+        }
+
+        public int GetTreasury()
+        {
+            int treasuryAtStartOfTurn = gameSession.CurrentGameState.world.GetSilverTreasury(RealmIndex);
+            int silverSpent = gameSession.AwaitingTransforms.Sum(o => CanControlRealm(o.owningRealm) ? o.SilverCost : 0);
+
+            return treasuryAtStartOfTurn - silverSpent;
+        }
+
+        public virtual bool CanPlay()
+        {
+            return true;
+        }
+
+        public bool AnyDecisionsRemaining()
+        {
+            return GetRemainingDecisions() > 0;
+        }
+
+        public bool CanAfford(int silverPrice)
+        {
+            return GetTreasury() >= silverPrice;
+        }
+
+        public bool CanPlayWithRegion(int reginIndex)
+        {
+            return gameSession.CurrentGameState.world.Regions[reginIndex].GetOwner(out byte regionOwner) &&
+                CanControlRealm(regionOwner) &&
+                (
+                    !gameSession.HasRegionPlayed(reginIndex) ||
+                    gameSession.CurrentGameState.world.Regions[reginIndex].CanReplay(gameSession.Rules)
+                )
+                &&
+                CanPlay() &&
+                AnyDecisionsRemaining();
+        }
+
+        public bool CanUpgradeAdministration()
+        {
+            // Allow admin upgrade even if no decisions remain
+            //if (!AnyDecisionsRemaining()) {
+            //    return false;
+            //}
+
+            if (!CanAfford(GetAdministrationUpgradeSilverCost())) {
+                return false;
+            }
+
+            if (AdminUpgradeIsPlanned()) {
+                return false; // Already upgrading
+            }
+
+            if (!CanPlay()) {
+                return false;
+            }
+
+            if (gameSession.CurrentGameState.world.Realms[RealmIndex].availableDecisions >= gameSession.Rules.maxDecisionCount) {
+                return false;
+            }
+
+            return true;
+        }
+
+        public bool IsLocalPlayerFavoured()
+        {
+            return gameSession.IsFavoured(RealmIndex);
+        }
+
+        public void PlanConstruction(int regionIndex, EBuilding building)
+        {
+            // We add an attack transform
+            RegionBuildTransform transform = new RegionBuildTransform(
+                building,
+                gameSession.Rules.GetBuilding(building).silverCost,
+                RealmIndex,
+                regionIndex,
+                RealmIndex
+            );
+
+            Act(transform);
+        }
+
+        public bool CanPayForFavours()
+        {
+            if (!AnyDecisionsRemaining()) {
+                return false;
+            }
+
+            if (!CanAfford(gameSession.Rules.favourGoldPrice * 10)) {
+                return false;
+            }
+
+            if (IsLocalPlayerFavoured()) {
+                return false;
+            }
+
+            if (FavoursArePlanned()) {
+                return false;
+            }
+
+            if (!CanPlay()) {
+                return false;
+            }
+
+            return true;
+        }
+
+        public bool FavoursArePlanned()
+        {
+            return gameSession.AwaitingTransforms.FindIndex(o =>
+            o is PayFavoursTransform favour && favour.realmToFavour == RealmIndex) >= 0;
+        }
+
+        public bool AdminUpgradeIsPlanned()
+        {
+            return gameSession.AwaitingTransforms.FindIndex(o =>
+            o is AdminUpgradeTransform adminUpgrade && adminUpgrade.realmToUpgrade == RealmIndex) >= 0;
+        }
+
+        public void PayForFavours()
+        {
+            Act(
+                new PayFavoursTransform(
+                    RealmIndex,
+                    gameSession.Rules.favourGoldPrice * 10,
+                    RealmIndex
+                )
+            );
+        }
+
+        public void UpgradeAdministration()
+        {
+            Act(
+                new AdminUpgradeTransform(
+                    RealmIndex,
+                    GetAdministrationUpgradeSilverCost(),
+                    RealmIndex
+                )
+            );
+        }
+
+        public int GetAdministrationUpgradeSilverCost()
+        {
+            int startDecisions = gameSession.Rules.startingDecisionCount;
+            int upgradeCount = gameSession.CurrentGameState.world.Realms[RealmIndex].availableDecisions - startDecisions;
+
+            return (gameSession.Rules.enhanceAdminGoldPrice + upgradeCount * gameSession.Rules.enhanceAdminGoldPriceIncreasePerUpgrade) * 10;
+        }
+
+        public bool CanBuildOn(int regionIndex)
+        {
+            if (!CanPlayWithRegion(regionIndex)) {
+                return false;
+            }
+
+
+            if (gameSession.CurrentGameState.world.Regions[regionIndex].buildings != EBuilding.None) {
+                return false;
+            }
+
+            return true;
+        }
+
+        public bool CanBuild(int regionIndex, EBuilding building)
+        {
+            if (!CanBuildOn(regionIndex)) {
+                return false;
+            }
+
+            GameRules.BuildingSettings settings = gameSession.Rules.GetBuilding(building);
+            if (!settings.canBeBuilt) {
+                return false;
+            }
+
+
+            if (!CanAfford(settings.silverCost)) {
+                return false;
+            }
+
+            return true;
+        }
+
+        public bool CanControlRealm(int realmIndex)
+        {
+            if (realmIndex == RealmIndex) {
+                return true;
+            }
+
+            int otherRealmOwner = realmIndex;
+            int localOwner = RealmIndex;
+
+            if (gameSession.CurrentGameState.world.Realms[otherRealmOwner].IsSubjugated(out byte theirOwner)) {
+                otherRealmOwner = theirOwner;
+            }
+
+            if (gameSession.CurrentGameState.world.Realms[localOwner].IsSubjugated(out byte myOwner)) {
+                localOwner = myOwner;
+            }
+
+            if (localOwner == otherRealmOwner) {
+                return true; // We're friends now
+            }
+
+            return false;
+        }
+        private void Act(Transform transform)
+        {
+            gameSession.AddTransform(transform);
+        }
+    }
+}
