@@ -560,7 +560,7 @@ namespace LouveSystems.K2.Lib
             }
 
             if (position.y > 0) {
-                if (position.x > 0) {
+                if (position.x >= offset) {
                     neighbors.Add(index - SideLength - offset);
                 }
 
@@ -579,7 +579,7 @@ namespace LouveSystems.K2.Lib
                     neighbors.Add(index + SideLength + 1 - offset);
                 }
 
-                if (position.x > 0) {
+                if (position.x >= offset) {
                     neighbors.Add(index + SideLength - offset);
                 }
             }

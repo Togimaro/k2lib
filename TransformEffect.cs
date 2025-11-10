@@ -183,6 +183,14 @@ namespace LouveSystems.K2.Lib
 
                 realms[attackingRealmIndex] = originalRealm;
                 realms[targetRealmIndex] = targetRealm;
+
+                // Also avoid nesting subjugations
+                for (int i = 0; i < realms.Length; i++) {
+                    if (realms[i].IsSubjugated(out byte subjugator) && subjugator == targetRealmIndex) {
+                        // They're mine nows!
+                        realms[i].subjugatedBy = attackingRealmIndex;
+                    }
+                }
             }
         }
 

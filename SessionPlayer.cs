@@ -344,25 +344,30 @@ namespace LouveSystems.K2.Lib
             return true;
         }
 
-        public bool CanControlRealm(int realmIndex)
+        public bool CanControlRealm(int otherRealmIndex)
         {
-            if (realmIndex == RealmIndex) {
+            if (otherRealmIndex == RealmIndex) {
                 return true;
             }
 
-            int otherRealmOwner = realmIndex;
             int localOwner = RealmIndex;
 
-            if (gameSession.CurrentGameState.world.Realms[otherRealmOwner].IsSubjugated(out byte theirOwner)) {
-                otherRealmOwner = theirOwner;
+            // We have the same subjugator
+            if (gameSession.CurrentGameState.world.Realms[otherRealmIndex].IsSubjugated(out byte theirOwner)) {
+                if (theirOwner == RealmIndex) {
+                    return true; // They are a subject of local owner
+                }
+                else {
+                    otherRealmIndex = theirOwner;
+                }
             }
+
 
             if (gameSession.CurrentGameState.world.Realms[localOwner].IsSubjugated(out byte myOwner)) {
-                localOwner = myOwner;
-            }
 
-            if (localOwner == otherRealmOwner) {
-                return true; // We're friends now
+                if (myOwner == otherRealmIndex) {
+                    return true; // They subjugated me
+                }
             }
 
             return false;
