@@ -173,30 +173,37 @@ namespace LouveSystems.K2.Lib
                     return; /// Should never happen
                 }
 
+                if (previous.world.Realms[attackingRealmIndex].IsSubjugated(out byte newOwner)) {
+                    // Subjugator takes the subjugated conquests! It spreads!
+                }
+                else {
+                    newOwner = attackingRealmIndex;
+                }
+
                 Realm targetRealm = previous.world.Realms[targetRealmIndex];
                 targetRealm.isSubjugated = true;
-                targetRealm.subjugatedBy = attackingRealmIndex;
+                targetRealm.subjugatedBy = newOwner;
 
                 next.world.Modify(out Region[] regions, out Realm[] realms);
 
-                Realm originalRealm = realms[attackingRealmIndex];
+                Realm originalRealm = realms[newOwner];
                 originalRealm.silverTreasury += targetRealm.silverTreasury;
                 targetRealm.silverTreasury = 0;
 
                 originalRealm.isFavoured |= targetRealm.isFavoured;
                 targetRealm.isFavoured = false;
 
-                realms[attackingRealmIndex] = originalRealm;
+                realms[newOwner] = originalRealm;
                 realms[targetRealmIndex] = targetRealm;
 
-                Logger.Trace($"Realm {targetRealmIndex} ({realms[targetRealmIndex]} is now subjugated by realm {attackingRealmIndex} ({realms[attackingRealmIndex]})");
+                Logger.Trace($"Realm {targetRealmIndex} ({realms[targetRealmIndex]} is now subjugated by realm {newOwner} ({realms[newOwner]})");
 
                 // Also avoid nesting subjugations
                 for (int i = 0; i < realms.Length; i++) {
                     if (realms[i].IsSubjugated(out byte subjugator) && subjugator == targetRealmIndex) {
                         // They're mine nows!
-                        realms[i].subjugatedBy = attackingRealmIndex;
-                        Logger.Trace($"Realm {i} ({realms[i]} is now ALSO subjugated by realm {attackingRealmIndex} ({realms[attackingRealmIndex]}) because their prior subjugator was realm {targetRealmIndex}, who's getting subjugated right now");
+                        realms[i].subjugatedBy = newOwner;
+                        Logger.Trace($"Realm {i} ({realms[i]} is now ALSO subjugated by realm {newOwner} ({realms[newOwner]}) because their prior subjugator was realm {targetRealmIndex}, who's getting subjugated right now");
                     }
                 }
             }
