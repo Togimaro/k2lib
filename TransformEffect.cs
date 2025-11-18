@@ -119,13 +119,36 @@ namespace LouveSystems.K2.Lib
 
             public void Apply(in GameState previous, ref GameState next)
             {
-                if (next.world.Regions[regionIndex].IsOwnedBy(forOwner)) {
+                // ownership check
+                if (!next.world.Regions[regionIndex].isOwned) {
+                    return;
+                }
+
+                byte targetOwner = forOwner;
+                {
+                    if (next.world.Realms[targetOwner].IsSubjugated(out byte subjugator)) {
+                        targetOwner = subjugator;
+                    }
+                }
+
+                byte regionOwner = next.world.Regions[regionIndex].ownerIndex;
+                {
+                    if (next.world.Realms[regionOwner].IsSubjugated(out byte subjugator)) {
+                        regionOwner = subjugator;
+                    }
+                }
+
+                if (targetOwner != regionOwner) {
+                    return;
+                }
+
+                if (next.world.Regions[regionIndex].IsOwnedBy(regionOwner)) {
 
                     next.world.Modify(out Region[] regions, out Realm[] realms);
 
                     regions[regionIndex].buildings |= building;
 
-                    next.world.AddSilverTreasury(forOwner, -silverPricePaid);
+                    next.world.AddSilverTreasury(regionOwner, -silverPricePaid);
                 }
             }
 
