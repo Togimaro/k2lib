@@ -355,5 +355,17 @@ namespace LouveSystems.K2.Lib
 
             throw new System.Exception($"Invalid criteria {criteria}");
         }
+
+        public override bool Equals(object obj)
+        {
+            return obj is GameRules &&
+                obj is IHashable hashable && 
+                hashable.GetHash() == (this as IHashable).GetHash();
+        }
+
+        public override int GetHashCode()
+        {
+            return base.GetHashCode();
+        }
     }
 }
