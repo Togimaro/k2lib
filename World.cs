@@ -43,6 +43,15 @@ namespace LouveSystems.K2.Lib
             }
         }
 
+        private static readonly IReadOnlyList<AxialPosition> AxialDirectionVectors = new AxialPosition[] {
+            new AxialPosition(+1,  0),
+            new AxialPosition( 0, +1),
+            new AxialPosition(+1, -1),
+            new AxialPosition(-1,  0),
+            new AxialPosition( 0, -1),
+            new AxialPosition(-1, +1),
+        };
+
         public IReadOnlyList<Region> Regions => regions;
         public IReadOnlyList<Realm> Realms => realms;
 
@@ -324,18 +333,11 @@ namespace LouveSystems.K2.Lib
 
             Position position = Position(regionIndex);
             AxialPosition axialCenter = new AxialPosition(position);
-            List<AxialPosition> offsets = new List<AxialPosition>() {
-                new AxialPosition(+1,  0),
-                new AxialPosition( 0, +1),
-                new AxialPosition(+1, -1),
-                new AxialPosition(-1,  0),
-                new AxialPosition( 0, -1),
-                new AxialPosition(-1, +1),
-            };
 
-            foreach (var off in offsets) {
+            for (int i = 0; i < AxialDirectionVectors.Count; i++) {
+                AxialPosition direction = AxialDirectionVectors[i];
                 for (int distance = 1; distance <= range; distance++) {
-                    Position neighborPosition = (axialCenter + off * distance).ToPosition();
+                    Position neighborPosition = (axialCenter + direction * distance).ToPosition();
 
                     if (!IsValidPosition(neighborPosition)) {
                         break;
