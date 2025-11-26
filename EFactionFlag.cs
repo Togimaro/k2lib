@@ -1,6 +1,7 @@
 ﻿
 namespace LouveSystems.K2.Lib
 {
+	[System.Flags]
     public enum EFactionFlag
     {
         None = 0,
